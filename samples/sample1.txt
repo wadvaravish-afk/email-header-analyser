@@ -1,0 +1,23 @@
+Delivered-To: victim@example.com
+Received: by 2002:a05:6a10:1234 with SMTP id abc123;
+        Sat, 25 Oct 2026 09:15:42 -0700 (PDT)
+Received: from mail.secure-bank-alerts.com (mail.secure-bank-alerts.com [203.0.113.45])
+        by mx.example.com with ESMTPS id xyz789
+        for <victim@example.com>;
+        Sat, 25 Oct 2026 09:15:40 -0700 (PDT)
+Received: from [192.168.1.20] (unknown [198.51.100.77])
+        by mail.secure-bank-alerts.com (Postfix) with ESMTP id 4F2A1;
+        Sat, 25 Oct 2026 16:15:38 +0000 (UTC)
+Authentication-Results: mx.example.com;
+       spf=fail (domain of security@commbank.com.au does not designate 203.0.113.45 as permitted sender) smtp.mailfrom=security@commbank.com.au;
+       dkim=none;
+       dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=commbank.com.au
+Return-Path: <bounce@secure-bank-alerts.com>
+From: "CommBank Security" <security@commbank.com.au>
+Reply-To: verify-account@gmail.com
+To: victim@example.com
+Subject: Urgent: Your account has been suspended
+Date: Sat, 25 Oct 2026 16:15:38 +0000
+Message-ID: <20261025161538.4F2A1@secure-bank-alerts.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"

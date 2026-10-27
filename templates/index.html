@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Header Analyser</title>
+  <style>
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 40px 16px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 36px; font-size: 1.2rem; }
+    .muted { color: #8b949e; }
+
+    textarea {
+      width: 100%;
+      height: 200px;
+      box-sizing: border-box;
+      background: #161b22;
+      color: #e6edf3;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #2f81f7; }
+
+    button {
+      margin-top: 12px;
+      background: #2f81f7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 22px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button:hover { background: #1f6feb; }
+
+    .error {
+      background: #3d1d20;
+      border: 1px solid #f85149;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 16px;
+    }
+
+    .verdict {
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 28px;
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+    .verdict.bad  { background: #3d1d20; border: 1px solid #f85149; }
+    .verdict.warn { background: #3a2d12; border: 1px solid #d29922; }
+    .verdict.ok   { background: #12261e; border: 1px solid #3fb950; }
+    .verdict small { display: block; font-size: 0.85rem; font-weight: 400; color: #8b949e; margin-top: 4px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    td, th { text-align: left; padding: 10px 12px; border-bottom: 1px solid #21262d; vertical-align: top; }
+    th { color: #8b949e; font-weight: 500; }
+    td.label { color: #8b949e; width: 140px; }
+    td { word-break: break-word; }
+
+    .badges { display: flex; gap: 12px; flex-wrap: wrap; }
+    .badge {
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-weight: 600;
+      border: 1px solid #30363d;
+      background: #161b22;
+    }
+    .badge.ok   { border-color: #3fb950; color: #3fb950; }
+    .badge.bad  { border-color: #f85149; color: #f85149; }
+    .badge.warn { border-color: #d29922; color: #d29922; }
+
+    .flag {
+      border-left: 4px solid #30363d;
+      background: #161b22;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+    .flag.high   { border-left-color: #f85149; }
+    .flag.medium { border-left-color: #d29922; }
+    .flag.info   { border-left-color: #2f81f7; }
+    .sev { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; margin-right: 8px; }
+    .flag.high .sev   { color: #f85149; }
+    .flag.medium .sev { color: #d29922; }
+    .flag.info .sev   { color: #2f81f7; }
+
+    .ip-public { color: #e6edf3; font-weight: 600; }
+    .ip-private { color: #8b949e; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Email Header Analyser</h1>
+  <p class="muted">Paste raw email headers to trace the delivery path, check SPF/DKIM/DMARC and spot phishing red flags.</p>
+
+  <form method="POST">
+    <textarea name="headers" placeholder="Paste raw email headers here...">{{ raw }}</textarea>
+    <button type="submit">Analyse</button>
+  </form>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+    {% set v = result.verdict %}
+    {% set vclass = {"Likely phishing": "bad", "Suspicious": "warn"}.get(v.label, "ok") %}
+    <div class="verdict {{ vclass }}">
+      {{ v.label }}
+      <small>Risk score: {{ v.score }} · Header analysis alone can't prove an email is safe.</small>
+    </div>
+
+    <h2>Summary</h2>
+    <table>
+      {% for field, value in result.summary.items() %}
+        <tr>
+          <td class="label">{{ field }}</td>
+          <td>{{ value or "—" }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+
+    <h2>Authentication</h2>
+    <div class="badges">
+      {% for check, outcome in result.auth.items() %}
+        {% if outcome == "pass" %}
+          {% set bclass = "ok" %}
+        {% elif outcome in ["fail", "permerror"] %}
+          {% set bclass = "bad" %}
+        {% elif outcome %}
+          {% set bclass = "warn" %}
+        {% else %}
+          {% set bclass = "" %}
+        {% endif %}
+        <div class="badge {{ bclass }}">{{ check.upper() }}: {{ outcome or "not found" }}</div>
+      {% endfor %}
+    </div>
+
+    <h2>Findings ({{ result.flags | length }})</h2>
+    {% for flag in result.flags %}
+      <div class="flag {{ flag.severity }}">
+        <span class="sev">{{ flag.severity.upper() }}</span><strong>{{ flag.title }}</strong>
+        <div class="muted">{{ flag.detail }}</div>
+      </div>
+    {% else %}
+      <p class="muted">No findings.</p>
+    {% endfor %}
+
+    <h2>Delivery path (origin first)</h2>
+    <table>
+      <tr><th>#</th><th>From</th><th>By</th><th>IPs</th><th>Date</th></tr>
+      {% for hop in result.hops %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ hop["from"] or "—" }}</td>
+          <td>{{ hop.by or "—" }}</td>
+          <td>
+            {% for ip in hop.ips %}
+              <div class="{{ 'ip-private' if ip.private else 'ip-public' }}">
+                {{ ip.ip }} ({{ "private" if ip.private else "public" }})
+              </div>
+            {% else %}
+              —
+            {% endfor %}
+          </td>
+          <td>{{ hop.date or "—" }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% endif %}
+</div>
+</body>
+</html>
